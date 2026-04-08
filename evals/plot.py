@@ -1,5 +1,6 @@
 """
-Generate an interactive bar chart of skill compression vs the terse control arm.
+Generate an intuitive bar chart comparing skill output length vs the
+terse control arm — side by side, so the visual gap IS the gain.
 
 Reads evals/snapshots/results.json and writes:
   - evals/snapshots/results.html  (interactive plotly)
@@ -11,7 +12,6 @@ Run: uv run --with tiktoken --with plotly --with kaleido python evals/plot.py
 from __future__ import annotations
 
 import json
-import statistics
 from pathlib import Path
 
 import plotly.graph_objects as go
@@ -32,115 +32,93 @@ def main() -> None:
     arms = data["arms"]
     meta = data.get("metadata", {})
 
-    terse_tokens = [count(o) for o in arms["__terse__"]]
+    terse_total = sum(count(o) for o in arms["__terse__"])
 
     rows = []
     for skill, outputs in arms.items():
         if skill in ("__baseline__", "__terse__"):
             continue
-        skill_tokens = [count(o) for o in outputs]
-        # savings as positive percentages (bigger = more compression)
-        savings = [
-            (1 - (s / t)) * 100 if t else 0.0
-            for s, t in zip(skill_tokens, terse_tokens)
-        ]
+        skill_total = sum(count(o) for o in outputs)
+        saved = terse_total - skill_total
+        pct = (saved / terse_total) * 100 if terse_total else 0.0
         rows.append(
-            {
-                "skill": skill,
-                "median": statistics.median(savings),
-                "mean": statistics.mean(savings),
-                "min": min(savings),
-                "max": max(savings),
-                "all": savings,
-            }
+            {"skill": skill, "skill_total": skill_total, "saved": saved, "pct": pct}
         )
 
-    rows.sort(key=lambda r: r["mean"])  # ascending so best is at top in horizontal bar
+    rows.sort(
+        key=lambda r: r["pct"]
+    )  # ascending → biggest gain at top in horizontal bar
     names = [r["skill"] for r in rows]
-    means = [r["mean"] for r in rows]
-    medians = [r["median"] for r in rows]
-    mins = [r["min"] for r in rows]
-    maxs = [r["max"] for r in rows]
-
-    # color by mean: green for compression, red for inflation
-    colors = ["#2ca02c" if m > 0 else "#d62728" for m in means]
+    skill_totals = [r["skill_total"] for r in rows]
+    saved = [r["saved"] for r in rows]
+    pcts = [r["pct"] for r in rows]
 
     fig = go.Figure()
 
-    # range line (min → max) per skill, behind the bars
-    for name, lo, hi in zip(names, mins, maxs):
-        fig.add_trace(
-            go.Scatter(
-                x=[lo, hi],
-                y=[name, name],
-                mode="lines",
-                line=dict(color="rgba(80,80,80,0.5)", width=2),
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-
-    # mean bars
+    # the part the skill still uses (what you pay)
     fig.add_trace(
         go.Bar(
-            x=means,
             y=names,
+            x=skill_totals,
             orientation="h",
-            marker=dict(color=colors),
-            text=[f"{m:+.0f}%" for m in means],
-            textposition="outside",
-            name="mean",
-            hovertemplate="<b>%{y}</b><br>mean: %{x:.1f}%<extra></extra>",
+            name="tokens used",
+            marker=dict(color="#4c78a8"),
+            text=[f"{t}" for t in skill_totals],
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(color="white", size=13),
+            hovertemplate="<b>%{y}</b><br>tokens used: %{x}<extra></extra>",
         )
     )
 
-    # median markers
+    # the part the skill saved (the win), stacked on top
     fig.add_trace(
-        go.Scatter(
-            x=medians,
+        go.Bar(
             y=names,
-            mode="markers",
-            marker=dict(symbol="line-ns", size=18, color="black", line=dict(width=2)),
-            name="median",
-            hovertemplate="<b>%{y}</b><br>median: %{x:.1f}%<extra></extra>",
+            x=saved,
+            orientation="h",
+            name="tokens saved",
+            marker=dict(color="#2ca02c"),
+            text=[f"−{s}  ({p:.0f}% less)" for s, p in zip(saved, pcts)],
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(color="white", size=13),
+            hovertemplate="<b>%{y}</b><br>tokens saved: %{x} (%{customdata:.0f}%)<extra></extra>",
+            customdata=pcts,
         )
     )
 
-    # min/max endpoint markers
-    fig.add_trace(
-        go.Scatter(
-            x=mins + maxs,
-            y=names + names,
-            mode="markers",
-            marker=dict(symbol="line-ns", size=10, color="rgba(80,80,80,0.7)"),
-            name="min / max",
-            hovertemplate="%{x:.1f}%<extra></extra>",
-        )
+    # reference line: where the terse control sits (= 100% of what you'd pay without the skill)
+    fig.add_vline(
+        x=terse_total,
+        line=dict(color="black", width=2, dash="dash"),
+        annotation_text=f"  no skill = {terse_total} tokens",
+        annotation_position="top right",
+        annotation_font=dict(size=11, color="black"),
     )
-
-    fig.add_vline(x=0, line=dict(color="black", width=1))
 
     fig.update_layout(
         title=dict(
-            text=f"<b>Output token savings vs terse control</b><br>"
-            f"<sub>{meta.get('model', '?')} · n={meta.get('n_prompts', '?')} prompts · "
-            f"single run per arm</sub>",
+            text=f"<b>How much shorter does each skill make Claude's answers?</b><br>"
+            f"<sub>{meta.get('model', '?')} · {meta.get('n_prompts', '?')} prompts · "
+            f"compared against a plain <i>'Answer concisely.'</i> baseline</sub>",
             x=0.5,
             xanchor="center",
         ),
+        barmode="stack",
         xaxis=dict(
-            title="Savings (%) — positive = compressed, negative = inflated",
-            ticksuffix="%",
+            title="Total output tokens across all prompts",
             zeroline=False,
             gridcolor="rgba(0,0,0,0.08)",
+            range=[0, terse_total * 1.15],
         ),
         yaxis=dict(title=""),
         plot_bgcolor="white",
         height=420,
-        width=900,
-        margin=dict(l=120, r=80, t=90, b=70),
+        width=950,
+        margin=dict(l=120, r=80, t=100, b=70),
         legend=dict(
-            orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5
+            orientation="h", yanchor="bottom", y=-0.22, xanchor="center", x=0.5
         ),
     )
 

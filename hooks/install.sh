@@ -3,7 +3,26 @@
 # Installs: SessionStart hook (auto-load rules) + UserPromptSubmit hook (mode tracking)
 # Usage: bash hooks/install.sh
 #   or:  bash <(curl -s https://raw.githubusercontent.com/JuliusBrussee/caveman/main/hooks/install.sh)
+#   or:  bash hooks/install.sh --force   (re-install over existing hooks)
 set -e
+
+FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    --force|-f) FORCE=1 ;;
+  esac
+done
+
+# Detect Windows (Git Bash / MSYS / MINGW) — not WSL (WSL reports "linux-gnu")
+case "$OSTYPE" in
+  msys*|cygwin*|mingw*)
+    echo "WARNING: Running on Windows ($OSTYPE)."
+    echo "         This script works in Git Bash/MSYS but symlinks may require"
+    echo "         Developer Mode or admin privileges."
+    echo "         If you installed via 'claude plugin install', you don't need this script."
+    echo ""
+    ;;
+esac
 
 # Require node — we use it to merge the hook config into settings.json
 if ! command -v node >/dev/null 2>&1; then
@@ -21,16 +40,37 @@ REPO_URL="https://raw.githubusercontent.com/JuliusBrussee/caveman/main/hooks"
 HOOK_FILES=("caveman-activate.js" "caveman-mode-tracker.js" "caveman-statusline.sh")
 
 # Resolve source — works from repo clone or curl pipe
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" 2>/dev/null)" 2>/dev/null && pwd)"
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+fi
 
-echo "Installing caveman hooks..."
+# Check if already installed (unless --force)
+ALREADY_INSTALLED=0
+if [ "$FORCE" -eq 0 ] && [ -f "$HOOKS_DIR/caveman-activate.js" ] && [ -f "$HOOKS_DIR/caveman-mode-tracker.js" ]; then
+  ALREADY_INSTALLED=1
+  echo "Caveman hooks already installed in $HOOKS_DIR"
+  echo "  Re-run with --force to overwrite: bash hooks/install.sh --force"
+  echo ""
+fi
+
+if [ "$ALREADY_INSTALLED" -eq 1 ] && [ "$FORCE" -eq 0 ]; then
+  echo "Nothing to do. Hooks are already in place."
+  exit 0
+fi
+
+if [ "$FORCE" -eq 1 ] && [ -f "$HOOKS_DIR/caveman-activate.js" ]; then
+  echo "Reinstalling caveman hooks (--force)..."
+else
+  echo "Installing caveman hooks..."
+fi
 
 # 1. Ensure hooks dir exists
 mkdir -p "$HOOKS_DIR"
 
 # 2. Copy or download hook files
 for hook in "${HOOK_FILES[@]}"; do
-  if [ -f "$SCRIPT_DIR/$hook" ]; then
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/$hook" ]; then
     cp "$SCRIPT_DIR/$hook" "$HOOKS_DIR/$hook"
   else
     curl -fsSL "$REPO_URL/$hook" -o "$HOOKS_DIR/$hook"
@@ -86,17 +126,28 @@ node -e "
     });
   }
 
-  // Statusline — wire caveman badge (only if no statusLine is already configured)
+  // Statusline — wire caveman badge (report if skipped)
   if (!settings.statusLine) {
     settings.statusLine = {
       type: 'command',
       command: 'bash $HOOKS_DIR/caveman-statusline.sh'
     };
+    console.log('  Statusline badge configured.');
+  } else {
+    const cmd = typeof settings.statusLine === 'string'
+      ? settings.statusLine
+      : (settings.statusLine.command || '');
+    if (!cmd.includes('caveman')) {
+      console.log('  NOTE: Existing statusline detected — caveman badge NOT added.');
+      console.log('        See hooks/README.md to add the badge to your existing statusline.');
+    } else {
+      console.log('  Statusline badge already configured.');
+    }
   }
 
   fs.writeFileSync('$SETTINGS', JSON.stringify(settings, null, 2) + '\n');
+  console.log('  Hooks wired in settings.json');
 "
-echo "  Hooks + statusline wired in settings.json"
 
 echo ""
 echo "Done! Restart Claude Code to activate."

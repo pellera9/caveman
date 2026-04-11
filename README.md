@@ -122,43 +122,111 @@ Based on the viral observation that caveman-speak dramatically reduces LLM token
 
 ## Install
 
-### Claude Code (recommended)
+Pick your agent. One command. Done.
 
-Install as a plugin — includes skills + auto-loading hooks + statusline badge. Caveman activates every session, `[CAVEMAN:ULTRA]` badge tracks mode, Claude sets up the statusline on first session:
+| Agent | Install |
+|-------|---------|
+| **Claude Code** | `claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman` |
+| **Codex** | Clone repo → `/plugins` → Search "Caveman" → Install |
+| **Gemini CLI** | `gemini extensions install https://github.com/JuliusBrussee/caveman` |
+| **Cursor** | `npx skills add JuliusBrussee/caveman -a cursor` |
+| **Windsurf** | `npx skills add JuliusBrussee/caveman -a windsurf` |
+| **Copilot** | `npx skills add JuliusBrussee/caveman -a github-copilot` |
+| **Cline** | `npx skills add JuliusBrussee/caveman -a cline` |
+| **Any other** | `npx skills add JuliusBrussee/caveman` |
+
+Install once. Use in all sessions after that. One rock. That it.
+
+### What You Get
+
+Not all install paths are equal. Claude Code plugin is the richest experience:
+
+| Feature | Claude Code (plugin) | Codex | Gemini CLI | npx skills |
+|---------|:-------------------:|:-----:|:----------:|:----------:|
+| Caveman mode | Y | Y | Y | Y |
+| Auto-activate every session | Y | — | Y | — |
+| Statusline badge `[CAVEMAN:ULTRA]` | Y | — | — | — |
+| Mode tracking (`/caveman ultra`) | Y | — | — | — |
+| caveman-commit | Y | Y | Y | Y |
+| caveman-review | Y | Y | Y | Y |
+| caveman-compress | Y | Y | Y | Y |
+
+<details>
+<summary><strong>Claude Code — full details</strong></summary>
+
+The plugin install gives you everything: skills + auto-loading hooks + statusline badge.
 
 ```bash
 claude plugin marketplace add JuliusBrussee/caveman
 claude plugin install caveman@caveman
 ```
 
-### Any agent (Claude Code, Cursor, Copilot, Windsurf, Cline, Codex, Gemini CLI, Antigravity)
-
+**Standalone hooks (without plugin):** If you prefer not to use the plugin system:
 ```bash
-npx skills add JuliusBrussee/caveman
+# macOS / Linux / WSL
+bash <(curl -s https://raw.githubusercontent.com/JuliusBrussee/caveman/main/hooks/install.sh)
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/JuliusBrussee/caveman/main/hooks/install.ps1 | iex
 ```
 
-For a specific agent: `npx skills add JuliusBrussee/caveman -a cursor`
+Or from a local clone: `bash hooks/install.sh` / `powershell -File hooks\install.ps1`
 
-> [!NOTE]
-> `npx skills` installs skills only (no hooks). For Claude Code auto-loading hooks, use the plugin install above or run `bash hooks/install.sh`.
-> Gemini CLI users can also install directly: `gemini extensions install https://github.com/JuliusBrussee/caveman`
+Uninstall: `bash hooks/uninstall.sh` or `powershell -File hooks\uninstall.ps1`
 
-### Codex
-
-1. Clone repo → Open Codex in repo → `/plugins` → Search `Caveman` → Install
-
-> [!NOTE]
-> **Windows Codex users:** Clone repo → VS Code → Codex Settings → Plugins → find `Caveman` under local marketplace → Install → Reload Window. Also enable `git config core.symlinks true` before cloning (requires developer mode or admin).
-
-Install once. Use in all sessions after that. One rock. That it.
-
-### Statusline Badge
-
-The plugin ships a statusline script that shows `[CAVEMAN]`, `[CAVEMAN:ULTRA]`, etc. in your Claude Code status bar.
+**Statusline badge:** The plugin ships a statusline script that shows `[CAVEMAN]`, `[CAVEMAN:ULTRA]`, etc. in your Claude Code status bar.
 
 - **Plugin install:** Claude offers to configure it on first session (auto-detected)
-- **Standalone install (`install.sh`):** Configured automatically
+- **Standalone install:** Configured automatically by `install.sh` / `install.ps1`
 - **Custom statusline:** See [`hooks/README.md`](hooks/README.md) for the snippet to add to your existing script
+
+</details>
+
+<details>
+<summary><strong>Codex — full details</strong></summary>
+
+**macOS / Linux:**
+1. Clone repo → Open Codex in the repo directory → `/plugins` → Search "Caveman" → Install
+
+**Windows:**
+1. Enable symlinks first: `git config --global core.symlinks true` (requires Developer Mode or admin)
+2. Clone repo → Open VS Code → Codex Settings → Plugins → find "Caveman" under local marketplace → Install → Reload Window
+
+</details>
+
+<details>
+<summary><strong>Gemini CLI — full details</strong></summary>
+
+```bash
+gemini extensions install https://github.com/JuliusBrussee/caveman
+```
+
+Update: `gemini extensions update caveman` · Uninstall: `gemini extensions uninstall caveman`
+
+Gemini loads the skill via `GEMINI.md` + `gemini-extension.json`. Auto-activates every session through the context file.
+
+</details>
+
+<details>
+<summary><strong>Cursor / Windsurf / Cline / Copilot / others</strong></summary>
+
+All use [npx skills](https://github.com/vercel-labs/skills) (supports 40+ agents):
+
+```bash
+npx skills add JuliusBrussee/caveman -a cursor
+npx skills add JuliusBrussee/caveman -a windsurf
+npx skills add JuliusBrussee/caveman -a cline
+npx skills add JuliusBrussee/caveman -a github-copilot
+npx skills add JuliusBrussee/caveman           # auto-detect agent
+```
+
+Uninstall: `npx skills remove caveman`
+
+> **Note:** `npx skills` installs skills only (no hooks or auto-activation). You'll trigger caveman manually with `/caveman` or "talk like caveman" each session.
+
+> **Windows note:** `npx skills` uses symlinks by default. If symlinks fail, add `--copy`: `npx skills add JuliusBrussee/caveman --copy`
+
+</details>
 
 ## Usage
 

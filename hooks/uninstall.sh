@@ -12,15 +12,40 @@ FLAG_FILE="$CLAUDE_DIR/.caveman-active"
 
 HOOK_FILES=("caveman-activate.js" "caveman-mode-tracker.js" "caveman-statusline.sh")
 
+# Detect if caveman is installed as a plugin (check plugin cache)
+PLUGIN_INSTALLED=0
+if [ -d "$CLAUDE_DIR/plugins" ]; then
+  if find "$CLAUDE_DIR/plugins" -path "*/caveman*" -name "plugin.json" -print -quit 2>/dev/null | grep -q .; then
+    PLUGIN_INSTALLED=1
+  fi
+fi
+
+if [ "$PLUGIN_INSTALLED" -eq 1 ]; then
+  echo "Caveman appears to be installed as a Claude Code plugin."
+  echo "To uninstall the plugin, run:"
+  echo ""
+  echo "  claude plugin disable caveman"
+  echo ""
+  echo "This script removes standalone hooks (installed via install.sh)."
+  echo "Continuing with standalone hook removal..."
+  echo ""
+fi
+
 echo "Uninstalling caveman hooks..."
 
 # 1. Remove hook files
+REMOVED_FILES=0
 for hook in "${HOOK_FILES[@]}"; do
   if [ -f "$HOOKS_DIR/$hook" ]; then
     rm "$HOOKS_DIR/$hook"
     echo "  Removed: $HOOKS_DIR/$hook"
+    REMOVED_FILES=$((REMOVED_FILES + 1))
   fi
 done
+
+if [ "$REMOVED_FILES" -eq 0 ]; then
+  echo "  No hook files found in $HOOKS_DIR"
+fi
 
 # 2. Remove caveman entries from settings.json (idempotent)
 if [ -f "$SETTINGS" ]; then
@@ -86,7 +111,10 @@ fi
 
 echo ""
 echo "Done! Restart Claude Code to complete the uninstall."
+
+# Guidance for other agents
 echo ""
-echo "Note: If you installed caveman as a plugin, disabling the plugin is"
-echo "      the recommended way to deactivate hooks — this script is only"
-echo "      needed if you installed manually via install.sh."
+echo "Other agents:"
+echo "  npx skills remove caveman    # Cursor, Windsurf, Cline, Copilot, etc."
+echo "  claude plugin disable caveman  # Claude Code plugin"
+echo "  gemini extensions uninstall caveman  # Gemini CLI"
